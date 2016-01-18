@@ -7,6 +7,8 @@
 
 -Updated the test.agni file.
 
+-Multi-elemental support has been removed for future update.
+
 #Update 1.1.1 (12/21/2015 @10:38am)
 -Massive code clean-up.
 
