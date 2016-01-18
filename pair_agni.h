@@ -39,8 +39,7 @@ class PairAgni : public Pair {
   void coeff(int, char **);
   void init_style();
   void init_list(int, class NeighList *);
-  double init_one(int, int);
-  void readUserFile();
+  double init_one(int, int);  
   void write_restart(FILE *);
   void read_restart(FILE *);
   void write_restart_settings(FILE *);
@@ -49,26 +48,32 @@ class PairAgni : public Pair {
   void write_data_all(FILE *);
   double single(int, int, int, int, double, double, double, double &);
   void *extract(const char *, int &);
-
   void compute_inner();
   void compute_middle();
   void compute_outer(int, int);
 
+  //user defined
+  void readUserFile();
+  void allocateUser(int, int, int);
 
  protected:
   double cut_global;
-  double **cut; //DON'T TOUCH THIS, WILL MESS UP ATOMS!!!!!!!!
-  //double **epsilon,**sigma;//NO CHANGE
-  //double **lj1,**lj2,**lj3,**lj4,**offset;//NO CHANGE
+  double **cut;
+  double **epsilon,**sigma;
+  double **lj1,**lj2,**lj3,**lj4,**offset;
   double *cut_respa;
 
   //user variables
+ 
   string inputFile;
-  int nTrain;
-  vector<double> Rc,sigma1,lambda,b;
-  vector<string> elementList;
-  vector< vector<double> > eta,yU,alpha;
-  vector< vector < vector<double> > > xU;
+
+  int etaSize,aSize,nTrain;
+
+  double Rc,sigma1,lambda,b;
+  double *eta,*yU,*alpha,*a;  
+  double **xU;
+
+  vector<string> elementList;//for an experimental build
 
   bool start;
 

@@ -2,9 +2,7 @@
 
 #Update 1.1.15 (1/18/2016 @11:30am)
 -Updated all user arrays from vectors to pointers.
-
 -Added an uncertainty class, and implemented uncertainty calculations.
-
 -Updated the test.agni file.
 
 #Update 1.1.1 (12/21/2015 @10:38am)

@@ -40,6 +40,9 @@
 #include <vector>
 #include <iomanip>
 
+//user classes
+#include "compute_uncertainty.h"
+
 using namespace LAMMPS_NS;
 using namespace MathConst;
 using namespace std;
@@ -62,12 +65,19 @@ PairAgni::~PairAgni()
     memory->destroy(cutsq);
 
     memory->destroy(cut);
-   // memory->destroy(epsilon);
-    //memory->destroy(sigma);
+    memory->destroy(epsilon);
+    memory->destroy(sigma);
+    memory->destroy(lj1);
+    memory->destroy(lj2);
+    memory->destroy(lj3);
+    memory->destroy(lj4);
+    memory->destroy(offset);
 
-    //memory->destroy(offset);
-
-    //memory->destroy(nTrain);
+    //user pointers
+    memory->destroy(alpha);
+    memory->destroy(eta);
+    memory->destroy(yU);
+    memory->destroy(xU);
 
   }
 }
@@ -76,89 +86,12 @@ PairAgni::~PairAgni()
 
 void PairAgni::compute(int eflag, int vflag)
 {
-  /*for(int i = 0; i < elementList.size(); i++)
-  {
-    cout<<"Element: " << elementList[i] << " ";
-  }
-  for(int i = 0; i < Rc.size(); i++)
-  {
-    cout<<"Rc: " << Rc[i] << " ";
-  }
-  cout<<endl;
-  for(int i = 0; i < Rc.size(); i++)
-  {
-    cout<<"sigma: " << sigma1[i] << " ";
-  }
-  cout<<endl;
-  for(int i = 0; i < Rc.size(); i++)
-  {
-    cout<<"lambda: " << lambda[i] << " ";
-  }
-  cout<<endl;
-  for(int i = 0; i < Rc.size(); i++)
-  {
-    cout<<"b: " << b[i] << " ";
-  }
-  cout<<endl;
-  for(int i = 0; i < eta.size(); i++)
-  {
-    for(int j = 0; j < eta[i].size(); j++)
-    {
-      cout<<"eta: " << eta[i][j] << " ";
-    } 
-    cout<<endl;   
-  }
-  cout<<endl;
-  cout<<endl;
-  cout<<endl;
-  for(int i = 0; i < yU.size(); i++)
-  {
-    for(int j = 0; j < yU[i].size(); j++)
-    {
-      cout<<"yU: " << yU[i][j] << " ";
-    } 
-    cout<<endl;   
-  }
-  cout<<endl;
-  cout<<endl;
-  cout<<endl;
-  for(int i = 0; i < alpha.size(); i++)
-  {
-    for(int j = 0; j < alpha[i].size(); j++)
-    {
-      cout<<"alpha: " << alpha[i][j] << " ";
-    }
-    cout<<endl;    
-  }
-  cout<<endl;
-  cout<<endl;
-  cout<<endl;
-  for(int i = 0; i < xU.size(); i++)
-  {
-    for(int j = 0; j < xU[i].size(); j++)
-    {
-      for(int k = 0; k < xU[i][j].size(); k++)
-      {
-        cout<<"xU: (i,j,k): " << i << " " << j << " " << k <<" " << xU[i][j][k] << " "<<endl;;
-      }
-     // cout<<endl;
-    }
-  }
-  cout<<endl;
-  cout<<endl;
-  cout<<endl;
-
-*/
-
-
   
   int i,j,ii,jj,inum,jnum,itype,jtype;
   double xtmp,ytmp,ztmp,delx,dely,delz,evdwl,fpair;
   double rsq,r2inv,r6inv,forcelj,factor_lj;
   double kx, ky, kz;
   int *ilist,*jlist,*numneigh,**firstneigh;
-  
-  
 
   evdwl = 0.0;
   if (eflag || vflag) ev_setup(eflag,vflag);
@@ -176,20 +109,21 @@ void PairAgni::compute(int eflag, int vflag)
   numneigh = list->numneigh;
   firstneigh = list->firstneigh;
 
-  // loop over neighbors of my atoms
+  // user variables
+  double dMax;
 
-  //our stuff 
- 
+  //our stuff
+  for (ii = 0; ii < inum; ii++) 
+  {
+    double Vx[etaSize],Vy[etaSize],Vz[etaSize]; 
 
-  for (ii = 0; ii < inum; ii++) {
-    /*vector<double> Vx(eta.size()),Vy(eta.size()),Vz(eta.size()); 
-    for(int n = 0; n < eta.size(); n++)
+    for(int n = 0; n < etaSize; n++)
     {
-      Vx.at(n) = 0;
-      Vy.at(n) = 0;
-      Vz.at(n) = 0;
+      Vx[n] = 0;
+      Vy[n] = 0;
+      Vz[n] = 0;
     }
-*/
+
     i = ilist[ii];
     xtmp = x[i][0];
     ytmp = x[i][1];
@@ -197,8 +131,6 @@ void PairAgni::compute(int eflag, int vflag)
     itype = type[i];
     jlist = firstneigh[i];
     jnum = numneigh[i];
-
-    //cout<<"jnum: "<<jnum<<endl;
 
     for (jj = 0; jj < jnum; jj++) 
     {
@@ -213,69 +145,90 @@ void PairAgni::compute(int eflag, int vflag)
       rsq = delx*delx + dely*dely + delz*delz;
       jtype = type[j];
 
-     // cout<<"dx: "<<delx<<" dy: "<<dely<<" dz: "<<delz<<endl;
       //our stuff
-      
-      //double cF,wX,wY,wZ;
+      double cF,wX,wY,wZ;
 
-      //cout<<"Rc: "<<cutsq[itype][jtype]<<endl;
-      /*cF = .5*(cos((M_PI*sqrt(rsq))/sqrt(cutsq[itype][jtype])) + 1.0);
+      cF = .5*(cos((M_PI*sqrt(rsq))/sqrt(cutsq[itype][jtype])) + 1.0);
       wX = delx/sqrt(rsq);
       wY = dely/sqrt(rsq);
       wZ = delz/sqrt(rsq);
 
-      for(int n = 0; n < eta.size(); n++)
+      for(int n = 0; n < etaSize; n++)
       {
-        Vx.at(n) += wX*cF*exp(-(eta.at(n)*rsq)); 
-        Vy.at(n) += wY*cF*exp(-(eta.at(n)*rsq));
-        Vz.at(n) += wZ*cF*exp(-(eta.at(n)*rsq)); 
+        Vx[n] += wX*cF*exp(-(eta[n]*rsq)); 
+        Vy[n] += wY*cF*exp(-(eta[n]*rsq));
+        Vz[n] += wZ*cF*exp(-(eta[n]*rsq)); 
       }
-      */
     }
-    
-
     //our stuff - Force prediction
-    //cout<<"atom#: "<<i<<" x: "<<xtmp<<" y: "<<ytmp<<" z: "<<ztmp<<endl;
-    /*for(int n = 0; n < nTrain; n++)
+    for(int n = 0; n < nTrain; n++)
     {
       double kx = 0.0;
       double ky = 0.0;
-      double kz = 0.0;
+      double kz = 0.0;    
 
-      for(int m = 0; m < eta.size(); m++)
-      {        
-        kx += pow((Vx.at(m) - xU[m][n]), 2.0);  
-        ky += pow((Vy.at(m) - xU[m][n]), 2.0);
-        kz += pow((Vz.at(m) - xU[m][n]), 2.0);
-        //cout<<" xU: "<<xU[m][n]<<endl;
+      for(int m = 0; m < etaSize; m++)
+      { 
+        kx += pow((Vx[m] - xU[m][n]), 2.0);  
+        ky += pow((Vy[m] - xU[m][n]), 2.0);
+        kz += pow((Vz[m] - xU[m][n]), 2.0);        
       }
-      */
-      
-      //cout<<" alpha: "<<alpha.at(n)<<"  y:"<<yU.at(n)<<endl;      
-      
-      //cout<<"alpha: "<<alpha.at(n)<<endl;
-      //f[i][0] += alpha.at(n)*exp(-kx/(2.0*pow(sigma1,2.0)));
-      //f[i][1] += alpha.at(n)*exp(-ky/(2.0*pow(sigma1,2.0)));
-      //f[i][2] += alpha.at(n)*exp(-kz/(2.0*pow(sigma1,2.0)));
-      //cout<<setprecision(15)<<"fi0: "<<alpha.at(n)*exp(-kx/(2.0*pow(sigma1,2.0)))<<endl;
-     // cout<<"kx = "<<kx<<" ky = "<<ky<<"kz = "<<kz<<endl;
-   // }
-    //cout<<"fi0: "<<f[i][0]<<endl;
-    //f[i][0] += b;
-    //f[i][1] += b;
-    //f[i][2] += b;
 
-    /*for(int m = 0; m < eta.size(); m++)
+      //array to store Ki values
+      double Ki[3];
+      Ki[0] = kx;
+      Ki[1] = ky;
+      Ki[2] = kz;
+
+      //compute dMin
+      dMax = 0.0;
+
+      for(int k = 0; k < 3; k++)
       {
-        cout<<"Vx: " <<Vx[m]<<" Vy: "<<Vy[m]<<" Vz: "<<Vz[m]<<endl;
-      } */  
-    //cout<<"fx: " <<f[i][0]<<" fy: "<<f[i][1]<<" fz: "<<f[i][2]<<endl;
+        if(sqrt(Ki[k]) > dMax)
+          dMax = sqrt(Ki[k]);
+      }
 
-    //cout<<"\n\n";
+      //compute forces      
+      f[i][0] += alpha[n]*exp(-kx/(2.0*pow(sigma1,2.0)));
+      f[i][1] += alpha[n]*exp(-ky/(2.0*pow(sigma1,2.0)));
+      f[i][2] += alpha[n]*exp(-kz/(2.0*pow(sigma1,2.0)));
+    }
+    f[i][0] += b;
+    f[i][1] += b;
+    f[i][2] += b;
+
+    //cout<<"fx: " <<f[i][0]<<" fy: "<<f[i][1]<<" fz: "<<f[i][2]<<endl;
+  }
+
+  //start of uncertainty section
+  bool tempFlag = true;
+
+  for(int i = 0; i < 3; i++)
+  {
+    for(int j = 0; j < 2; j++)
+    {
+      if(domain->boundary[i][j] != 0)
+      {
+        tempFlag = false;
+        break;
+      }
+    }
+  }
+  if(tempFlag != false)
+  {
+    for(int i = 0; i < inum; i++)
+    {
+      for(int j = 0; j < inum; j++)
+      {
+        f[i][0] -= f[j][0]/inum;
+        f[i][1] -= f[j][1]/inum;
+        f[i][2] -= f[j][2]/inum;
+      }
+    }
+    double epsilon_uncertainty = ComputeUncertainty::compute_uncertainty(a[0], a[1], a[2], dMax);
   }
   //end of our stuff
-
-
   if (vflag_fdotr) virial_fdotr_compute();
 }
 
@@ -283,21 +236,256 @@ void PairAgni::compute(int eflag, int vflag)
 
 void PairAgni::compute_inner()
 {
-  
+  /*int i,j,ii,jj,inum,jnum,itype,jtype;
+  double xtmp,ytmp,ztmp,delx,dely,delz,fpair;
+  double rsq,r2inv,r6inv,forcelj,factor_lj,rsw;
+  int *ilist,*jlist,*numneigh,**firstneigh;
+
+  double **x = atom->x;
+  double **f = atom->f;
+  int *type = atom->type;
+  int nlocal = atom->nlocal;
+  double *special_lj = force->special_lj;
+  int newton_pair = force->newton_pair;
+
+  inum = listinner->inum;
+  ilist = listinner->ilist;
+  numneigh = listinner->numneigh;
+  firstneigh = listinner->firstneigh;
+
+  double cut_out_on = cut_respa[0];
+  double cut_out_off = cut_respa[1];
+
+  double cut_out_diff = cut_out_off - cut_out_on;
+  double cut_out_on_sq = cut_out_on*cut_out_on;
+  double cut_out_off_sq = cut_out_off*cut_out_off;
+
+  // loop over neighbors of my atoms
+
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    xtmp = x[i][0];
+    ytmp = x[i][1];
+    ztmp = x[i][2];
+    itype = type[i];
+    jlist = firstneigh[i];
+    jnum = numneigh[i];
+
+    for (jj = 0; jj < jnum; jj++) {
+      j = jlist[jj];
+      factor_lj = special_lj[sbmask(j)];
+      j &= NEIGHMASK;
+
+      delx = xtmp - x[j][0];
+      dely = ytmp - x[j][1];
+      delz = ztmp - x[j][2];
+      rsq = delx*delx + dely*dely + delz*delz;
+
+      if (rsq < cut_out_off_sq) {
+        r2inv = 1.0/rsq;
+        r6inv = r2inv*r2inv*r2inv;
+        jtype = type[j];
+        forcelj = r6inv * (lj1[itype][jtype]*r6inv - lj2[itype][jtype]);
+        fpair = factor_lj*forcelj*r2inv;
+        if (rsq > cut_out_on_sq) {
+          rsw = (sqrt(rsq) - cut_out_on)/cut_out_diff;
+          fpair *= 1.0 - rsw*rsw*(3.0 - 2.0*rsw);
+        }
+
+        f[i][0] += delx*fpair;
+        f[i][1] += dely*fpair;
+        f[i][2] += delz*fpair;
+        if (newton_pair || j < nlocal) {
+          f[j][0] -= delx*fpair;
+          f[j][1] -= dely*fpair;
+          f[j][2] -= delz*fpair;
+        }
+      }
+    }
+  }*/
 }
 
 /* ---------------------------------------------------------------------- */
 
 void PairAgni::compute_middle()
 {
-  
+  /*
+  int i,j,ii,jj,inum,jnum,itype,jtype;
+  double xtmp,ytmp,ztmp,delx,dely,delz,fpair;
+  double rsq,r2inv,r6inv,forcelj,factor_lj,rsw;
+  int *ilist,*jlist,*numneigh,**firstneigh;
+
+  double **x = atom->x;
+  double **f = atom->f;
+  int *type = atom->type;
+  int nlocal = atom->nlocal;
+  double *special_lj = force->special_lj;
+  int newton_pair = force->newton_pair;
+
+  inum = listmiddle->inum;
+  ilist = listmiddle->ilist;
+  numneigh = listmiddle->numneigh;
+  firstneigh = listmiddle->firstneigh;
+
+  double cut_in_off = cut_respa[0];
+  double cut_in_on = cut_respa[1];
+  double cut_out_on = cut_respa[2];
+  double cut_out_off = cut_respa[3];
+
+  double cut_in_diff = cut_in_on - cut_in_off;
+  double cut_out_diff = cut_out_off - cut_out_on;
+  double cut_in_off_sq = cut_in_off*cut_in_off;
+  double cut_in_on_sq = cut_in_on*cut_in_on;
+  double cut_out_on_sq = cut_out_on*cut_out_on;
+  double cut_out_off_sq = cut_out_off*cut_out_off;
+
+  // loop over neighbors of my atoms
+
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    xtmp = x[i][0];
+    ytmp = x[i][1];
+    ztmp = x[i][2];
+    itype = type[i];
+    jlist = firstneigh[i];
+    jnum = numneigh[i];
+
+    for (jj = 0; jj < jnum; jj++) {
+      j = jlist[jj];
+      factor_lj = special_lj[sbmask(j)];
+      j &= NEIGHMASK;
+
+      delx = xtmp - x[j][0];
+      dely = ytmp - x[j][1];
+      delz = ztmp - x[j][2];
+      rsq = delx*delx + dely*dely + delz*delz;
+
+      if (rsq < cut_out_off_sq && rsq > cut_in_off_sq) {
+        r2inv = 1.0/rsq;
+        r6inv = r2inv*r2inv*r2inv;
+        jtype = type[j];
+        forcelj = r6inv * (lj1[itype][jtype]*r6inv - lj2[itype][jtype]);
+        fpair = factor_lj*forcelj*r2inv;
+        if (rsq < cut_in_on_sq) {
+          rsw = (sqrt(rsq) - cut_in_off)/cut_in_diff;
+          fpair *= rsw*rsw*(3.0 - 2.0*rsw);
+        }
+        if (rsq > cut_out_on_sq) {
+          rsw = (sqrt(rsq) - cut_out_on)/cut_out_diff;
+          fpair *= 1.0 + rsw*rsw*(2.0*rsw - 3.0);
+        }
+
+        f[i][0] += delx*fpair;
+        f[i][1] += dely*fpair;
+        f[i][2] += delz*fpair;
+        if (newton_pair || j < nlocal) {
+          f[j][0] -= delx*fpair;
+          f[j][1] -= dely*fpair;
+          f[j][2] -= delz*fpair;
+        }
+      }
+    }
+  }*/
 }
 
 /* ---------------------------------------------------------------------- */
 
 void PairAgni::compute_outer(int eflag, int vflag)
 {
- 
+ /* int i,j,ii,jj,inum,jnum,itype,jtype;
+  double xtmp,ytmp,ztmp,delx,dely,delz,evdwl,fpair;
+  double rsq,r2inv,r6inv,forcelj,factor_lj,rsw;
+  int *ilist,*jlist,*numneigh,**firstneigh;
+
+  evdwl = 0.0;
+  if (eflag || vflag) ev_setup(eflag,vflag);
+  else evflag = 0;
+
+  double **x = atom->x;
+  double **f = atom->f;
+  int *type = atom->type;
+  int nlocal = atom->nlocal;
+  double *special_lj = force->special_lj;
+  int newton_pair = force->newton_pair;
+
+  inum = listouter->inum;
+  ilist = listouter->ilist;
+  numneigh = listouter->numneigh;
+  firstneigh = listouter->firstneigh;
+
+  double cut_in_off = cut_respa[2];
+  double cut_in_on = cut_respa[3];
+
+  double cut_in_diff = cut_in_on - cut_in_off;
+  double cut_in_off_sq = cut_in_off*cut_in_off;
+  double cut_in_on_sq = cut_in_on*cut_in_on;
+
+  // loop over neighbors of my atoms
+
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    xtmp = x[i][0];
+    ytmp = x[i][1];
+    ztmp = x[i][2];
+    itype = type[i];
+    jlist = firstneigh[i];
+    jnum = numneigh[i];
+
+    for (jj = 0; jj < jnum; jj++) {
+      j = jlist[jj];
+      factor_lj = special_lj[sbmask(j)];
+      j &= NEIGHMASK;
+
+      delx = xtmp - x[j][0];
+      dely = ytmp - x[j][1];
+      delz = ztmp - x[j][2];
+      rsq = delx*delx + dely*dely + delz*delz;
+      jtype = type[j];
+
+      if (rsq < cutsq[itype][jtype]) {
+        if (rsq > cut_in_off_sq) {
+          r2inv = 1.0/rsq;
+          r6inv = r2inv*r2inv*r2inv;
+          forcelj = r6inv * (lj1[itype][jtype]*r6inv - lj2[itype][jtype]);
+          fpair = factor_lj*forcelj*r2inv;
+          if (rsq < cut_in_on_sq) {
+            rsw = (sqrt(rsq) - cut_in_off)/cut_in_diff;
+            fpair *= rsw*rsw*(3.0 - 2.0*rsw);
+          }
+
+          f[i][0] += delx*fpair;
+          f[i][1] += dely*fpair;
+          f[i][2] += delz*fpair;
+          if (newton_pair || j < nlocal) {
+            f[j][0] -= delx*fpair;
+            f[j][1] -= dely*fpair;
+            f[j][2] -= delz*fpair;
+          }
+        }
+
+        if (eflag) {
+          r2inv = 1.0/rsq;
+          r6inv = r2inv*r2inv*r2inv;
+          evdwl = r6inv*(lj3[itype][jtype]*r6inv-lj4[itype][jtype]) -
+            offset[itype][jtype];
+          evdwl *= factor_lj;
+        }
+
+        if (vflag) {
+          if (rsq <= cut_in_off_sq) {
+            r2inv = 1.0/rsq;
+            r6inv = r2inv*r2inv*r2inv;
+            forcelj = r6inv * (lj1[itype][jtype]*r6inv - lj2[itype][jtype]);
+            fpair = factor_lj*forcelj*r2inv;
+          } else if (rsq < cut_in_on_sq)
+            fpair = factor_lj*forcelj*r2inv;
+        }
+
+        if (evflag) ev_tally(i,j,nlocal,newton_pair,
+                             evdwl,0.0,fpair,delx,dely,delz);
+      }
+    }
+  }*/
 }
 
 /* ----------------------------------------------------------------------
@@ -317,10 +505,26 @@ void PairAgni::allocate()
   memory->create(cutsq,n+1,n+1,"pair:cutsq");
 
   memory->create(cut,n+1,n+1,"pair:cut");
-  //memory->create(epsilon,n+1,n+1,"pair:epsilon");
- // memory->create(sigma,n+1,n+1,"pair:sigma");
+  memory->create(epsilon,n+1,n+1,"pair:epsilon");
+  memory->create(sigma,n+1,n+1,"pair:sigma");
+  memory->create(lj1,n+1,n+1,"pair:lj1");
+  memory->create(lj2,n+1,n+1,"pair:lj2");
+  memory->create(lj3,n+1,n+1,"pair:lj3");
+  memory->create(lj4,n+1,n+1,"pair:lj4");
+  memory->create(offset,n+1,n+1,"pair:offset");
+}
 
-  //memory->create(offset,n+1,n+1,"pair:offset");
+//allocates user Defined arrays after the values are read in
+void PairAgni::allocateUser(int aSize, int etaSize, int nTrain)
+{ 
+  //1D arrays 
+  memory->create(eta, etaSize, "pair:eta");
+  memory->create(yU, nTrain, "pair:yU");
+  memory->create(alpha, nTrain, "pair:alpha");
+  memory->create(a, aSize, "pair:a");
+
+  //2D arrays
+  memory->create(xU, etaSize, nTrain, "pair:xU");
 }
 
 /* ----------------------------------------------------------------------
@@ -346,8 +550,6 @@ void PairAgni::coeff(int narg, char **arg)
     readUserFile(); //user input files
     start = false;
   }
-
-  // reset cutoffs that have been explicitly set
 
   //sets cut from cut_global
   if (allocated) {
@@ -467,18 +669,27 @@ void PairAgni::init_list(int id, NeighList *ptr)
 double PairAgni::init_one(int i, int j)
 {
   if (setflag[i][j] == 0) {
-    //epsilon[i][j] = mix_energy(epsilon[i][i],epsilon[j][j],
-                               //sigma[i][i],sigma[j][j]);
-    //sigma[i][j] = mix_distance(sigma[i][i],sigma[j][j]);
+    epsilon[i][j] = mix_energy(epsilon[i][i],epsilon[j][j],
+                               sigma[i][i],sigma[j][j]);
+    sigma[i][j] = mix_distance(sigma[i][i],sigma[j][j]);
     cut[i][j] = mix_distance(cut[i][i],cut[j][j]);
   }
 
-  if (offset_flag) {
-    //double ratio = sigma[i][j] / cut[i][j];
-    //offset[i][j] = 4.0 * epsilon[i][j] * (pow(ratio,12.0) - pow(ratio,6.0));
-  } //else offset[i][j] = 0.0;
+  lj1[i][j] = 48.0 * epsilon[i][j] * pow(sigma[i][j],12.0);
+  lj2[i][j] = 24.0 * epsilon[i][j] * pow(sigma[i][j],6.0);
+  lj3[i][j] = 4.0 * epsilon[i][j] * pow(sigma[i][j],12.0);
+  lj4[i][j] = 4.0 * epsilon[i][j] * pow(sigma[i][j],6.0);
 
-  //offset[j][i] = offset[i][j];
+  if (offset_flag) {
+    double ratio = sigma[i][j] / cut[i][j];
+    offset[i][j] = 4.0 * epsilon[i][j] * (pow(ratio,12.0) - pow(ratio,6.0));
+  } else offset[i][j] = 0.0;
+
+  lj1[j][i] = lj1[i][j];
+  lj2[j][i] = lj2[i][j];
+  lj3[j][i] = lj3[i][j];
+  lj4[j][i] = lj4[i][j];
+  offset[j][i] = offset[i][j];
 
   // check interior rRESPA cutoff
 
@@ -500,15 +711,15 @@ double PairAgni::init_one(int i, int j)
     }
     MPI_Allreduce(count,all,2,MPI_DOUBLE,MPI_SUM,world);
 
-    //double sig2 = sigma[i][j]*sigma[i][j];
-    //double sig6 = sig2*sig2*sig2;
+    double sig2 = sigma[i][j]*sigma[i][j];
+    double sig6 = sig2*sig2*sig2;
     double rc3 = cut[i][j]*cut[i][j]*cut[i][j];
     double rc6 = rc3*rc3;
     double rc9 = rc3*rc6;
-    //etail_ij = 8.0*MY_PI*all[0]*all[1]*epsilon[i][j] *
-     // sig6 * (sig6 - 3.0*rc6) / (9.0*rc9);
-   // ptail_ij = 16.0*MY_PI*all[0]*all[1]*epsilon[i][j] *
-     // sig6 * (2.0*sig6 - 3.0*rc6) / (9.0*rc9);
+    etail_ij = 8.0*MY_PI*all[0]*all[1]*epsilon[i][j] *
+      sig6 * (sig6 - 3.0*rc6) / (9.0*rc9);
+    ptail_ij = 16.0*MY_PI*all[0]*all[1]*epsilon[i][j] *
+      sig6 * (2.0*sig6 - 3.0*rc6) / (9.0*rc9);
   }
 
   return cut[i][j];
@@ -518,20 +729,23 @@ void PairAgni::readUserFile()
 {
   ifstream infile(inputFile.c_str());//input file
 
-  string line = "";  //initializes line
-  string varSet = ""; //determines where the xU values will start
-
+  int count = 0; //line countre  
   bool changeJ; //changes entered 0's to avoid erasing
   bool tempBreak; //boolean for deleting the first element of the item vector
-  bool resizeXU = true; //resizes xU based on nTrain
   bool varStart = true; //temp boolean to start 
-  bool resizeVectors = true; //boolean to resize all vectors when a new element is added
-  
+
   double j; //temp variables for string to double values
-  
+
   int xUStart = 1000000; //arbitrarily large value to ensure this only happens when it needs to
   int xUcount = 0;
-  int count = 0; //line countre
+  int yUcount = 0;
+  int alphaCount = 0;
+  int tempTrain;
+
+  string varSet = ""; 
+  string line = "";  //initializes line
+
+  vector<double> tempEta,tempA;
 
   while(getline(infile,line))
   {    
@@ -549,10 +763,9 @@ void PairAgni::readUserFile()
       stringstream ss(line); //ss is the sstream that stores line
 
       while(getline(ss,item,delim))
-      {
-        elements.push_back(item); //pushes the line to the elements vector
-      }
-      //erases vector elements that correspond to spaces and initialize variables
+        elements.push_back(item);
+
+      //erases verctor elements that correspond to spaces and initialize variables
       for(int i = 0; i < elements.size(); i++)
       {        
         j = atof(elements.at(i).c_str()); //converts a const *char to a float
@@ -560,150 +773,126 @@ void PairAgni::readUserFile()
         if(i == 0 && varStart == true)
         {
           varSet = elements.at(0); //stores var name 
-          varStart = false; //ensures this is only done once per line
-        }
+          varStart = false; //ensures thi is only done once per line
+        }          
 
-        //determines all different elements that are in the system
-        if(varSet == "Dataset" && i == 0)
+        if(varSet == "Dataset")
         {
           for(int e = 0; e < elements.size(); e++)
           {
-          	string buf; // Have a buffer string
-    			  stringstream ss(elements.at(e)); // Insert the string into a stream
+            string buf; // Have a buffer string
+            stringstream ss(elements.at(e)); // Insert the string into a stream
 
-    			    if(ss >> buf)
-        			  elementList.push_back(buf); //pushes the elements name to the element list
+              if(ss >> buf)
+                elementList.push_back(buf); //pushes the elements name to the element list
           } 
           //gets rid of the word Dataset
           if(elementList.size() == 2)
             elementList.erase(elementList.begin());
           else
             elementList.erase(elementList.begin() + elementList.size() - 2);
-          //resizes vectors based on the addition of a new element into the system
-          if(resizeVectors == true && elementList.size() > 0)
-          {
-            Rc.resize(elementList.size());
-            sigma1.resize(elementList.size());
-            lambda.resize(elementList.size());
-            b.resize(elementList.size());
-            eta.resize(elementList.size());
-            xU.resize(elementList.size());
-            yU.resize(elementList.size());
-            alpha.resize(elementList.size());
-            resizeVectors = false;
-          }                       	
-        }        
-
+        }
         if(elements.at(i) == "0.0") //changes the value of added 0's to avoid be erased
         {
           j = 1.0;
           changeJ = true;
-        }       
-
+        } 
         if(i == 0 && varSet != "Dataset" && tempBreak == false)
         {
           elements.erase(elements.begin());
           i--;//modifies the index to avoid segmentation faults
           tempBreak = true;
         } 
-
         else if(j != 0 && tempBreak == true) //initializes values
         {
           if(changeJ == true)//restores the original value of the changed 0's
             j = atof(elements.at(i).c_str());
-
           if(varSet == "Rc") //Rc
           {
-            Rc[elementList.size() - 1] =  j; 
-            cut_global = Rc[elementList.size() - 1];
+            Rc = j;
+            cut_global = Rc; 
           }
           else if(varSet == "eta") //eta
-            eta[elementList.size() - 1].push_back(j);
+            tempEta.push_back(j);
           else if(varSet == "sigma")//sigma
-            sigma1[elementList.size() - 1] = j;
+            sigma1 = j;
           else if(varSet == "lambda")//lambda
-            lambda[elementList.size() - 1] = j;
+            lambda = j;
           else if(varSet == "b") //b
-            b[elementList.size() - 1] = j;
+            b = j;
+          else if(varSet == "uncertaintyCoeffs")
+            tempA.push_back(j);
           else if(varSet == "n_train")//n-train
-            nTrain = (int) j;
+            nTrain =j;
           else if(varSet == "endVar")
+          {
+            etaSize = tempEta.size();
+            aSize = tempA.size();
+
+            //allocates memory for the user pointers
+            allocateUser(aSize, etaSize, nTrain);
+
+            //assigns the values for eta
+            for(int k = 0; k < etaSize; k++)
+              eta[k] = tempEta.at(k);
+
+            for(int k = 0; k < aSize; k++)
+              a[k] = tempA.at(k);
+
             xUStart = count + 1;  //sets when xU will start          
+          }
           else if(count > xUStart && count <= xUStart + nTrain)//xU,yU,alpha
-          {             
+          { 
             if(i < elements.size()-2)//xU
-            {
-              //resizes xU based on nTrain and eta.size()
-              if(resizeXU == true)
-              {
-                xU[elementList.size() - 1].resize(eta[elementList.size() - 1].size());//resize number of columes in xU
-                for(int l = 0; l < xU[elementList.size() - 1].size(); l++)
-                {
-                  xU[elementList.size() - 1][l].resize(nTrain);//resizes number of rows in xU
-                }
-                resizeXU = false;
-              }              
-              for(int k = 0; k < eta[elementList.size() - 1].size(); k++)
+            {                                       
+              for(int k = 0; k < etaSize; k++)
               {
                 if(i == k)
-                  xU[elementList.size() - 1][k][xUcount] = j; //adds j to the correct xU index
+                  xU[k][xUcount] = j; //adds j to the correct xU index
               }
             }
             else if(i == elements.size()-2)//yU
-              yU[elementList.size() - 1].push_back(j);
+            {
+              yU[yUcount] = j;
+              yUcount++;
+            }
             else if(i == elements.size()-1)//alpha
-              alpha[elementList.size() - 1].push_back(j);
+            {
+              alpha[alphaCount] = j;
+              alphaCount++;
+            }
           }
         }
-      }     
-      if(count > xUStart) //counts until nTrain
-        xUcount++;
-      //chekcs for the next element in the system and resets the reader
-      if(count > xUStart + nTrain)
-      {
-        xUcount = 0;
-        xUStart = 10000;
-        count = -1;
-        resizeXU = true;
-        varStart = true;
-        resizeVectors = true;
       }
+      if(count > xUStart)
+        xUcount++;
     }
     count++;
-  }
-
-  //testing for read correctness
-  for(int i = 0; i < elementList.size(); i++)
-  {
-    cout << elementList.at(i) << " ";
-  }
-  cout<<endl;
+  } 
 
   //send variables to nodes through MPI
   MPI_Bcast(&Rc,1,MPI_DOUBLE,0,world);//Rc
-  MPI_Bcast(&sigma1,1,MPI_DOUBLE,0,world);//sigma
+  MPI_Bcast(&sigma,1,MPI_DOUBLE,0,world);//sigma
   MPI_Bcast(&lambda,1,MPI_DOUBLE,0,world);//lambda
   MPI_Bcast(&b,1,MPI_DOUBLE,0,world);//b
   MPI_Bcast(&nTrain,1,MPI_INT,0,world);//ntrain
-  for(int k = 0; k < xU.size(); k++)
+  for(int k = 0; k < aSize; k++)
   {
-  	for(int p = 0; p < xU.at(0).size(); p++)
-  	{
-		MPI_Bcast(&xU[k][p],1,MPI_DOUBLE,0,world);//xU
-  	}
-  }  
-  for(int p = 0; p < yU.size(); p++)
-  {
-	MPI_Bcast(&yU[p],1,MPI_DOUBLE,0,world);//yU
-  }  
-  for(int k = 0; k < alpha.size(); k++)
-  {
-	MPI_Bcast(&alpha[k],1,MPI_DOUBLE,0,world);//alpha
+    MPI_Bcast(&a[k],1,MPI_DOUBLE,0,world);//uncertainty coefficients 
   }
-  for(int k = 0; k < eta.size(); k++)
+  for(int k = 0; k < etaSize; k++)
   {
+  	for(int p = 0; p < nTrain; p++)
+		  MPI_Bcast(&xU[k][p],1,MPI_DOUBLE,0,world);//xU
+  }  
+  for(int p = 0; p < nTrain; p++)
+	  MPI_Bcast(&yU[p],1,MPI_DOUBLE,0,world);//yU
+  for(int k = 0; k < nTrain; k++)
+	  MPI_Bcast(&alpha[k],1,MPI_DOUBLE,0,world);//alpha
+  for(int k = 0; k < etaSize; k++)
   	MPI_Bcast(&eta[k],1,MPI_DOUBLE,0,world);//eta
-  } 	
+  for(int k = 0; k < aSize; k++)
+    MPI_Bcast(&a[k],1,MPI_DOUBLE,0,world);//a coefficients
 }
 /* ----------------------------------------------------------------------
    proc 0 writes to restart file
@@ -718,7 +907,9 @@ void PairAgni::write_restart(FILE *fp)
     for (j = i; j <= atom->ntypes; j++) {
       fwrite(&setflag[i][j],sizeof(int),1,fp);
       if (setflag[i][j]) {
-     
+        fwrite(&epsilon[i][j],sizeof(double),1,fp);
+        fwrite(&sigma[i][j],sizeof(double),1,fp);
+        fwrite(&cut[i][j],sizeof(double),1,fp);
       }
     }
 }
@@ -739,8 +930,14 @@ void PairAgni::read_restart(FILE *fp)
       if (me == 0) fread(&setflag[i][j],sizeof(int),1,fp);
       MPI_Bcast(&setflag[i][j],1,MPI_INT,0,world);
       if (setflag[i][j]) {
-        if (me == 0) {         
-        }       
+        if (me == 0) {
+          fread(&epsilon[i][j],sizeof(double),1,fp);
+          fread(&sigma[i][j],sizeof(double),1,fp);
+          fread(&cut[i][j],sizeof(double),1,fp);
+        }
+        MPI_Bcast(&epsilon[i][j],1,MPI_DOUBLE,0,world);
+        MPI_Bcast(&sigma[i][j],1,MPI_DOUBLE,0,world);
+        MPI_Bcast(&cut[i][j],1,MPI_DOUBLE,0,world);
       }
     }
 }
@@ -782,8 +979,8 @@ void PairAgni::read_restart_settings(FILE *fp)
 
 void PairAgni::write_data(FILE *fp)
 {
-  //for (int i = 1; i <= atom->ntypes; i++)
-    //fprintf(fp,"%d %g %g\n",i,epsilon[i][i],sigma[i][i]);
+  for (int i = 1; i <= atom->ntypes; i++)
+    fprintf(fp,"%d %g %g\n",i,epsilon[i][i],sigma[i][i]);
 }
 
 /* ----------------------------------------------------------------------
@@ -794,8 +991,7 @@ void PairAgni::write_data_all(FILE *fp)
 {
   for (int i = 1; i <= atom->ntypes; i++)
     for (int j = i; j <= atom->ntypes; j++)
-      //fprintf(fp,"%d %d %g %g %g\n",i,j,epsilon[i][j],sigma[i][j],cut[i][j]);
-    	int t = 0;
+      fprintf(fp,"%d %d %g %g %g\n",i,j,epsilon[i][j],sigma[i][j],cut[i][j]);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -804,7 +1000,7 @@ double PairAgni::single(int i, int j, int itype, int jtype, double rsq,
                          double factor_coul, double factor_lj,
                          double &fforce)
 {
-  /*double r2inv,r6inv,forcelj,philj;
+  double r2inv,r6inv,forcelj,philj;
 
   r2inv = 1.0/rsq;
   r6inv = r2inv*r2inv*r2inv;
@@ -813,8 +1009,7 @@ double PairAgni::single(int i, int j, int itype, int jtype, double rsq,
 
   philj = r6inv*(lj3[itype][jtype]*r6inv-lj4[itype][jtype]) -
     offset[itype][jtype];
-    */
-  return 0;
+  return factor_lj*philj;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -822,7 +1017,7 @@ double PairAgni::single(int i, int j, int itype, int jtype, double rsq,
 void *PairAgni::extract(const char *str, int &dim)
 {
   dim = 2;
-  //if (strcmp(str,"epsilon") == 0) return (void *) epsilon;
-  //if (strcmp(str,"sigma") == 0) return (void *) sigma;
+  if (strcmp(str,"epsilon") == 0) return (void *) epsilon;
+  if (strcmp(str,"sigma") == 0) return (void *) sigma;
   return NULL;
 }
