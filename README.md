@@ -1,5 +1,10 @@
 # LAMMPS
 
+#update 1.1.2 (1/20/2016 @1:22pm)
+-Updated the check for periodicity in pair_agni
+
+-Updated compute_uncertainty (this is not ready for implementation though!)
+
 #Update 1.1.15 (1/18/2016 @11:30am)
 -Updated all user arrays from vectors to pointers.
 

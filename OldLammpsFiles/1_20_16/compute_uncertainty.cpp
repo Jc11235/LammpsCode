@@ -28,7 +28,6 @@
 #include "neigh_request.h"
 #include "force.h"
 #include "pair.h"
-#include "pair_agni.h"
 #include "comm.h"
 #include "memory.h"
 #include "error.h"
@@ -41,14 +40,14 @@ using namespace std;
 ComputeUncertainty::ComputeUncertainty(LAMMPS *lmp, int narg, char **arg) :
   Compute(lmp, narg, arg)
 {
-  if (narg != 3) error->all(FLERR,"Illegal compute uncertainty command"); // arg == 3, ID, group-ID, style
+  if (narg != 4) error->all(FLERR,"Illegal compute centro/atom command");
 
-  //if (strcmp(arg[3],"fcc") == 0) nnn = 12;
-  ///else if (strcmp(arg[3],"bcc") == 0) nnn = 8;
-  //else nnn = force->inumeric(FLERR,arg[3]);
+  if (strcmp(arg[3],"fcc") == 0) nnn = 12;
+  else if (strcmp(arg[3],"bcc") == 0) nnn = 8;
+  else nnn = force->inumeric(FLERR,arg[3]);
 
-  //if (nnn <= 0 || nnn % 2)
-    //error->all(FLERR,"Illegal neighbor value for compute uncertainty command");
+  if (nnn <= 0 || nnn % 2)
+    error->all(FLERR,"Illegal neighbor value for compute centro/atom command");
 
   peratom_flag = 1;
   size_peratom_cols = 0;
@@ -58,10 +57,6 @@ ComputeUncertainty::ComputeUncertainty(LAMMPS *lmp, int narg, char **arg) :
   maxneigh = 0;
   distsq = NULL;
   nearest = NULL;
-
-  //USer defined
-  dMin = NULL;
-  epsilon = NULL;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -71,44 +66,31 @@ ComputeUncertainty::~ComputeUncertainty()
   memory->destroy(centro);
   memory->destroy(distsq);
   memory->destroy(nearest);
-
-  //user defined
-  memory->destroy(epsilon);
 }
 
 /* ---------------------------------------------------------------------- */
 
-
-
-//user methods
-void ComputeUncertainty::compute_uncertainty()
+double ComputeUncertainty::compute_uncertainty(double a_zero, double a_one, double a_two, double dMax)
 {
-  memory->create(epsilon, list->inum, "ComputeUncertainty:epsilon");
+  double epsilon;
 
-  PairAgni *agni = (PairAgni *) force->pair_match("agni",1);
+  epsilon = a_zero + a_one*dMax + a_two*pow(dMax,2.0);
 
-  for(int i = 0; i < list->inum; i++)
-  {
-    epsilon[i] = agni->a[0] + agni->dMin[i]*agni->a[1] + agni->a[2]*pow(agni->dMin[i],2.0);
-    cout<<"epsilon: " << epsilon[i] << endl;
-  }
+  return epsilon;
 }
 
 /* ------------------------------------------------------------------------*/
 
-
-
-//end user methods
 void ComputeUncertainty::init()
 {
   if (force->pair == NULL)
-    error->all(FLERR,"Compute uncertainty requires a pair style be defined");
+    error->all(FLERR,"Compute centro/atom requires a pair style be defined");
 
   int count = 0;
   for (int i = 0; i < modify->ncompute; i++)
-    if (strcmp(modify->compute[i]->style,"uncertainty") == 0) count++;
+    if (strcmp(modify->compute[i]->style,"centro/atom") == 0) count++;
   if (count > 1 && comm->me == 0)
-    error->warning(FLERR,"More than one compute uncertainty");
+    error->warning(FLERR,"More than one compute centro/atom");
 
   // need an occasional full neighbor list
 
@@ -118,8 +100,6 @@ void ComputeUncertainty::init()
   neighbor->requests[irequest]->half = 0;
   neighbor->requests[irequest]->full = 1;
   neighbor->requests[irequest]->occasional = 1;
-
-  cout<<"UNCERTAINTY INIT" << endl;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -133,10 +113,6 @@ void ComputeUncertainty::init_list(int id, NeighList *ptr)
 
 void ComputeUncertainty::compute_peratom()
 {
-  cout<<"Uncertainty per atom" << endl;
-
-
-  
   int i,j,k,ii,jj,kk,n,inum,jnum;
   double xtmp,ytmp,ztmp,delx,dely,delz,rsq,value;
   int *ilist,*jlist,*numneigh,**firstneigh;
@@ -148,7 +124,7 @@ void ComputeUncertainty::compute_peratom()
   if (atom->nlocal > nmax) {
     memory->destroy(centro);
     nmax = atom->nmax;
-    memory->create(centro,nmax,"uncertainty:centro");
+    memory->create(centro,nmax,"centro/atom:centro");
     vector_atom = centro;
   }
 
@@ -189,8 +165,8 @@ void ComputeUncertainty::compute_peratom()
         memory->destroy(distsq);
         memory->destroy(nearest);
         maxneigh = jnum;
-        memory->create(distsq,maxneigh,"uncertainty:distsq");
-        memory->create(nearest,maxneigh,"uncertainty:nearest");
+        memory->create(distsq,maxneigh,"centro/atom:distsq");
+        memory->create(nearest,maxneigh,"centro/atom:nearest");
       }
 
       // loop over list of all neighbors within force cutoff
@@ -219,6 +195,9 @@ void ComputeUncertainty::compute_peratom()
         continue;
       }
 
+      // store nnn nearest neighs in 1st nnn locations of distsq and nearest
+
+      select2(nnn,n,distsq,nearest);
 
       // R = Ri + Rj for each of npairs i,j pairs among nnn neighbors
       // pairs = squared length of each R
@@ -235,6 +214,9 @@ void ComputeUncertainty::compute_peratom()
         }
       }
 
+      // store nhalf smallest pair distances in 1st nhalf locations of pairs
+
+      select(nhalf,npairs,pairs);
 
       // centrosymmetry = sum of nhalf smallest squared values
 
@@ -245,10 +227,6 @@ void ComputeUncertainty::compute_peratom()
   }
 
   delete [] pairs;
-
-
-  //user stuff
-  compute_uncertainty();
 }
 
 /* ----------------------------------------------------------------------
@@ -260,6 +238,103 @@ void ComputeUncertainty::compute_peratom()
 #define SWAP(a,b)   tmp = a; a = b; b = tmp;
 #define ISWAP(a,b) itmp = a; a = b; b = itmp;
 
+void ComputeUncertainty::select(int k, int n, double *arr)
+{
+  int i,ir,j,l,mid;
+  double a,tmp;
+
+  arr--;
+  l = 1;
+  ir = n;
+  for (;;) {
+    if (ir <= l+1) {
+      if (ir == l+1 && arr[ir] < arr[l]) {
+        SWAP(arr[l],arr[ir])
+      }
+      return;
+    } else {
+      mid=(l+ir) >> 1;
+      SWAP(arr[mid],arr[l+1])
+      if (arr[l] > arr[ir]) {
+        SWAP(arr[l],arr[ir])
+      }
+      if (arr[l+1] > arr[ir]) {
+        SWAP(arr[l+1],arr[ir])
+      }
+      if (arr[l] > arr[l+1]) {
+        SWAP(arr[l],arr[l+1])
+      }
+      i = l+1;
+      j = ir;
+      a = arr[l+1];
+      for (;;) {
+        do i++; while (arr[i] < a);
+        do j--; while (arr[j] > a);
+        if (j < i) break;
+        SWAP(arr[i],arr[j])
+      }
+      arr[l+1] = arr[j];
+      arr[j] = a;
+      if (j >= k) ir = j-1;
+      if (j <= k) l = i;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void ComputeUncertainty::select2(int k, int n, double *arr, int *iarr)
+{
+  int i,ir,j,l,mid,ia,itmp;
+  double a,tmp;
+
+  arr--;
+  iarr--;
+  l = 1;
+  ir = n;
+  for (;;) {
+    if (ir <= l+1) {
+      if (ir == l+1 && arr[ir] < arr[l]) {
+        SWAP(arr[l],arr[ir])
+        ISWAP(iarr[l],iarr[ir])
+      }
+      return;
+    } else {
+      mid=(l+ir) >> 1;
+      SWAP(arr[mid],arr[l+1])
+      ISWAP(iarr[mid],iarr[l+1])
+      if (arr[l] > arr[ir]) {
+        SWAP(arr[l],arr[ir])
+        ISWAP(iarr[l],iarr[ir])
+      }
+      if (arr[l+1] > arr[ir]) {
+        SWAP(arr[l+1],arr[ir])
+        ISWAP(iarr[l+1],iarr[ir])
+      }
+      if (arr[l] > arr[l+1]) {
+        SWAP(arr[l],arr[l+1])
+        ISWAP(iarr[l],iarr[l+1])
+      }
+      i = l+1;
+      j = ir;
+      a = arr[l+1];
+      ia = iarr[l+1];
+      for (;;) {
+        do i++; while (arr[i] < a);
+        do j--; while (arr[j] > a);
+        if (j < i) break;
+        SWAP(arr[i],arr[j])
+        ISWAP(iarr[i],iarr[j])
+      }
+      arr[l+1] = arr[j];
+      arr[j] = a;
+      iarr[l+1] = iarr[j];
+      iarr[j] = ia;
+      if (j >= k) ir = j-1;
+      if (j <= k) l = i;
+    }
+  }
+}
 
 /* ----------------------------------------------------------------------
    memory usage of local atom-based array

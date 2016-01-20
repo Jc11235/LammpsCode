@@ -34,19 +34,17 @@ class ComputeUncertainty : public Compute {
   double memory_usage();
 
   //user methods
-  void compute_uncertainty();
-
- protected:
-  //user variables
-  double *dMin, *epsilon;
+  static double compute_uncertainty(double, double, double, double);
 
  private:
   int nmax,maxneigh,nnn;
   double *distsq;
   int *nearest;
   class NeighList *list;
-  double *centro;  
+  double *centro;
 
+  void select(int, int, double *);
+  void select2(int, int, double *, int *);
 };
 
 }

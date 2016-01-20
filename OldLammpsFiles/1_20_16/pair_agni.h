@@ -56,8 +56,6 @@ class PairAgni : public Pair {
   void readUserFile();
   void allocateUser(int, int, int);
 
-  double *a,*dMin;
-
  protected:
   double cut_global;
   double **cut;
@@ -72,7 +70,7 @@ class PairAgni : public Pair {
   int etaSize,aSize,nTrain;
 
   double Rc,sigma1,lambda,b;
-  double *eta,*yU,*alpha;  
+  double *eta,*yU,*alpha,*a;  
   double **xU;
 
   vector<string> elementList;//for an experimental build

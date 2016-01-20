@@ -32,15 +32,16 @@
 #include "math_const.h"
 #include "memory.h"
 #include "error.h"
-#include "compute.h"
-#include "modify.h"
 #include <iostream>
 #include <string>
 #include <cstring>
 #include <sstream>
+#include <iostream>
 #include <vector>
 #include <iomanip>
 
+//user classes
+#include "compute_uncertainty.h"
 
 using namespace LAMMPS_NS;
 using namespace MathConst;
@@ -77,7 +78,6 @@ PairAgni::~PairAgni()
     memory->destroy(eta);
     memory->destroy(yU);
     memory->destroy(xU);
-    memory->destroy(dMin);
 
   }
 }
@@ -85,7 +85,8 @@ PairAgni::~PairAgni()
 /* ---------------------------------------------------------------------- */
 
 void PairAgni::compute(int eflag, int vflag)
-{  
+{
+  
   int i,j,ii,jj,inum,jnum,itype,jtype;
   double xtmp,ytmp,ztmp,delx,dely,delz,evdwl,fpair;
   double rsq,r2inv,r6inv,forcelj,factor_lj;
@@ -107,12 +108,10 @@ void PairAgni::compute(int eflag, int vflag)
   ilist = list->ilist;
   numneigh = list->numneigh;
   firstneigh = list->firstneigh;
-  
-  //user variables
-  double tempdMin;
 
-  memory->create(dMin,inum,"pair:dMin");
-  
+  // user variables
+  double dMax;
+
   //our stuff
   for (ii = 0; ii < inum; ii++) 
   {
@@ -177,21 +176,17 @@ void PairAgni::compute(int eflag, int vflag)
 
       //array to store Ki values
       double Ki[3];
-
       Ki[0] = kx;
       Ki[1] = ky;
       Ki[2] = kz;
 
       //compute dMin
-      tempdMin = 0.0;
+      dMax = 0.0;
 
       for(int k = 0; k < 3; k++)
       {
-        if(sqrt(Ki[k]) > tempdMin)
-        {
-          dMin[k] = sqrt(Ki[k]);
-          tempdMin = sqrt(Ki[k]);
-        }
+        if(sqrt(Ki[k]) > dMax)
+          dMax = sqrt(Ki[k]);
       }
 
       //compute forces      
@@ -207,30 +202,32 @@ void PairAgni::compute(int eflag, int vflag)
   }
 
   //start of uncertainty section
-  bool tempFlag[3] = {true, true, true};
+  bool tempFlag = true;
 
   for(int i = 0; i < 3; i++)
   {
-    if(domain->periodicity[i] != 1)
-      tempFlag[i] = false;
-  }  
-  for(int i = 0; i < 3; i++)
-  {
-    if(tempFlag[i] != false) 
+    for(int j = 0; j < 2; j++)
     {
-      for(int j = 0; j < inum; j++)
+      if(domain->boundary[i][j] != 0)
       {
-        for(int k = 0; k < inum; k++)
-        {
-          f[j][0] -= f[k][0]/inum;
-          f[j][1] -= f[k][1]/inum;
-          f[j][2] -= f[k][2]/inum;
-        }       
+        tempFlag = false;
+        break;
       }
     }
   }
-for(int i = 0; i < inum; i++)
-  cout<<"fx: " <<f[i][0]<<" fy: "<<f[i][1]<<" fz: "<<f[i][2]<<endl;
+  if(tempFlag != false)
+  {
+    for(int i = 0; i < inum; i++)
+    {
+      for(int j = 0; j < inum; j++)
+      {
+        f[i][0] -= f[j][0]/inum;
+        f[i][1] -= f[j][1]/inum;
+        f[i][2] -= f[j][2]/inum;
+      }
+    }
+    double epsilon_uncertainty = ComputeUncertainty::compute_uncertainty(a[0], a[1], a[2], dMax);
+  }
   //end of our stuff
   if (vflag_fdotr) virial_fdotr_compute();
 }
