@@ -28,24 +28,20 @@ class ComputeUncertainty : public Compute {
  public:
   ComputeUncertainty(class LAMMPS *, int, char **);
   ~ComputeUncertainty();
-  void init();
   void init_list(int, class NeighList *);
-  void compute_peratom();
+  void init();
   double memory_usage();
+  void compute_peratom();
 
   //user methods
   void compute_uncertainty();
 
-// protected:
   //user variables
   double *epsilon;
 
  private:
-  int nmax,maxneigh,nnn;
-  double *distsq;
-  int *nearest;
+  int nmax;
   class NeighList *list;
-  double *centro;  
 
 };
 

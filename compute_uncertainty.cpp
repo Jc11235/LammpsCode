@@ -53,13 +53,7 @@ ComputeUncertainty::ComputeUncertainty(LAMMPS *lmp, int narg, char **arg) :
   peratom_flag = 1;
   size_peratom_cols = 0;
 
-  nnn = 0;
-
   nmax = 0;
-  centro = NULL;
-  maxneigh = 0;
-  distsq = NULL;
-  nearest = NULL;
 
   //USer defined
   epsilon = NULL;
@@ -69,34 +63,11 @@ ComputeUncertainty::ComputeUncertainty(LAMMPS *lmp, int narg, char **arg) :
 
 ComputeUncertainty::~ComputeUncertainty()
 {
-  memory->destroy(centro);
-  memory->destroy(distsq);
-  memory->destroy(nearest);
-
   //user defined
   memory->destroy(epsilon);
 }
 
 /* ---------------------------------------------------------------------- */
-
-
-
-//user methods
-void ComputeUncertainty::compute_uncertainty()
-{
-  memory->create(epsilon, list->inum, "uncertainty:epsilon");
-
-  PairAgni *agni = (PairAgni *) force->pair_match("agni",1);
-
-  for(int i = 0; i < list->inum; i++)
-    epsilon[i] = agni->a[0] + agni->dMin[i]*(agni->a[1]) + agni->a[2]*pow(agni->dMin[i],2.0);
-
-  vector_atom = epsilon; // vector_atom is parent array that send information to dump styles
-}
-
-/* ------------------------------------------------------------------------*/
-
-
 
 //end user methods
 void ComputeUncertainty::init()
@@ -129,118 +100,25 @@ void ComputeUncertainty::init_list(int id, NeighList *ptr)
 
 /* ---------------------------------------------------------------------- */
 
+void ComputeUncertainty::compute_uncertainty()
+{
+  memory->create(epsilon, list->inum, "uncertainty:epsilon");
+
+  PairAgni *agni = (PairAgni *) force->pair_match("agni",1);
+
+  for(int i = 0; i < list->inum; i++)
+    epsilon[i] = agni->a[0] + agni->dMin[i]*(agni->a[1]) + agni->a[2]*pow(agni->dMin[i],2.0);
+
+  vector_atom = epsilon; // vector_atom is parent array that send information to dump styles
+}
+
 void ComputeUncertainty::compute_peratom()
 {
-  int i,j,k,ii,jj,kk,n,inum,jnum;
-  double xtmp,ytmp,ztmp,delx,dely,delz,rsq,value;
-  int *ilist,*jlist,*numneigh,**firstneigh;
-
-  invoked_peratom = update->ntimestep;
-
-  // grow centro array if necessary
-
-  if (atom->nlocal > nmax) {
-    memory->destroy(centro);
+  if (atom->nlocal > nmax)
     nmax = atom->nmax;
-    memory->create(centro,nmax,"uncertainty:centro");
-    vector_atom = centro;
-  }
-
-  // invoke full neighbor list (will copy or build if necessary)
 
   neighbor->build_one(list);
 
-  inum = list->inum;
-  ilist = list->ilist;
-  numneigh = list->numneigh;
-  firstneigh = list->firstneigh;
-
-  // npairs = number of unique pairs
-
-  int nhalf = nnn/2;
-  int npairs = nnn * (nnn-1) / 2;
-  double *pairs = new double[npairs];
-
-  // compute centro-symmetry parameter for each atom in group
-  // use full neighbor list
-
-  double **x = atom->x;
-  int *mask = atom->mask;
-  double cutsq = force->pair->cutforce * force->pair->cutforce;
-
-  for (ii = 0; ii < inum; ii++) {
-    i = ilist[ii];
-    if (mask[i] & groupbit) {
-      xtmp = x[i][0];
-      ytmp = x[i][1];
-      ztmp = x[i][2];
-      jlist = firstneigh[i];
-      jnum = numneigh[i];
-
-      // insure distsq and nearest arrays are long enough
-
-      if (jnum > maxneigh) {
-        memory->destroy(distsq);
-        memory->destroy(nearest);
-        maxneigh = jnum;
-        memory->create(distsq,maxneigh,"uncertainty:distsq");
-        memory->create(nearest,maxneigh,"uncertainty:nearest");
-      }
-
-      // loop over list of all neighbors within force cutoff
-      // distsq[] = distance sq to each
-      // nearest[] = atom indices of neighbors
-
-      n = 0;
-      for (jj = 0; jj < jnum; jj++) {
-        j = jlist[jj];
-        j &= NEIGHMASK;
-
-        delx = xtmp - x[j][0];
-        dely = ytmp - x[j][1];
-        delz = ztmp - x[j][2];
-        rsq = delx*delx + dely*dely + delz*delz;
-        if (rsq < cutsq) {
-          distsq[n] = rsq;
-          nearest[n++] = j;
-        }
-      }
-
-      // if not nnn neighbors, centro = 0.0
-
-      if (n < nnn) {
-        centro[i] = 0.0;
-        continue;
-      }
-
-
-      // R = Ri + Rj for each of npairs i,j pairs among nnn neighbors
-      // pairs = squared length of each R
-
-      n = 0;
-      for (j = 0; j < nnn; j++) {
-        jj = nearest[j];
-        for (k = j+1; k < nnn; k++) {
-          kk = nearest[k];
-          delx = x[jj][0] + x[kk][0] - 2.0*xtmp;
-          dely = x[jj][1] + x[kk][1] - 2.0*ytmp;
-          delz = x[jj][2] + x[kk][2] - 2.0*ztmp;
-          pairs[n++] = delx*delx + dely*dely + delz*delz;
-        }
-      }
-
-
-      // centrosymmetry = sum of nhalf smallest squared values
-
-      value = 0.0;
-      for (j = 0; j < nhalf; j++) value += pairs[j];
-      centro[i] = value;
-    } else centro[i] = 0.0;
-  }
-
-  delete [] pairs;
-
-  //user stuff
   compute_uncertainty();
 }
 
