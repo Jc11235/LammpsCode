@@ -1,10 +1,5 @@
 # LAMMPS
 
-#Update 1.1.25 (1/22/2016 @ 10:53am)
--The uncertainty can now be written to file via the dump command
-
--Fixed issue with force symmetrization in pair_agni
-
 #update 1.1.2 (1/20/2016 @1:22pm)
 -Updated the check for periodicity in pair_agni
 
