@@ -154,7 +154,7 @@ void PairAgni::compute(int eflag, int vflag)
       cF = .5*(cos((M_PI*sqrt(rsq))/sqrt(cutsq[itype][jtype])) + 1.0);
       wX = delx/sqrt(rsq);
       wY = dely/sqrt(rsq);
-      wZ = delz/sqrt(rsq);  
+      wZ = delz/sqrt(rsq);
 
       for(int n = 0; n < etaSize; n++)
       {
@@ -212,8 +212,6 @@ void PairAgni::compute(int eflag, int vflag)
     //cout<<"fx: " <<f[i][0]<<" fy: "<<f[i][1]<<" fz: "<<f[i][2]<<endl;
   }
 
-  cout<<a[0]<<" "<<a[1]<<" "<<a[2]<<endl;
-
   //start of force symmetrization
   double *c = NULL; //initialize pointer
 
@@ -251,21 +249,256 @@ void PairAgni::set_epsilon_UNC(double *&newEpsilonUNC)
 
 void PairAgni::compute_inner()
 {
-  
+  /*int i,j,ii,jj,inum,jnum,itype,jtype;
+  double xtmp,ytmp,ztmp,delx,dely,delz,fpair;
+  double rsq,r2inv,r6inv,forcelj,factor_lj,rsw;
+  int *ilist,*jlist,*numneigh,**firstneigh;
+
+  double **x = atom->x;
+  double **f = atom->f;
+  int *type = atom->type;
+  int nlocal = atom->nlocal;
+  double *special_lj = force->special_lj;
+  int newton_pair = force->newton_pair;
+
+  inum = listinner->inum;
+  ilist = listinner->ilist;
+  numneigh = listinner->numneigh;
+  firstneigh = listinner->firstneigh;
+
+  double cut_out_on = cut_respa[0];
+  double cut_out_off = cut_respa[1];
+
+  double cut_out_diff = cut_out_off - cut_out_on;
+  double cut_out_on_sq = cut_out_on*cut_out_on;
+  double cut_out_off_sq = cut_out_off*cut_out_off;
+
+  // loop over neighbors of my atoms
+
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    xtmp = x[i][0];
+    ytmp = x[i][1];
+    ztmp = x[i][2];
+    itype = type[i];
+    jlist = firstneigh[i];
+    jnum = numneigh[i];
+
+    for (jj = 0; jj < jnum; jj++) {
+      j = jlist[jj];
+      factor_lj = special_lj[sbmask(j)];
+      j &= NEIGHMASK;
+
+      delx = xtmp - x[j][0];
+      dely = ytmp - x[j][1];
+      delz = ztmp - x[j][2];
+      rsq = delx*delx + dely*dely + delz*delz;
+
+      if (rsq < cut_out_off_sq) {
+        r2inv = 1.0/rsq;
+        r6inv = r2inv*r2inv*r2inv;
+        jtype = type[j];
+        forcelj = r6inv * (lj1[itype][jtype]*r6inv - lj2[itype][jtype]);
+        fpair = factor_lj*forcelj*r2inv;
+        if (rsq > cut_out_on_sq) {
+          rsw = (sqrt(rsq) - cut_out_on)/cut_out_diff;
+          fpair *= 1.0 - rsw*rsw*(3.0 - 2.0*rsw);
+        }
+
+        f[i][0] += delx*fpair;
+        f[i][1] += dely*fpair;
+        f[i][2] += delz*fpair;
+        if (newton_pair || j < nlocal) {
+          f[j][0] -= delx*fpair;
+          f[j][1] -= dely*fpair;
+          f[j][2] -= delz*fpair;
+        }
+      }
+    }
+  }*/
 }
 
 /* ---------------------------------------------------------------------- */
 
 void PairAgni::compute_middle()
 {
-  
+  /*
+  int i,j,ii,jj,inum,jnum,itype,jtype;
+  double xtmp,ytmp,ztmp,delx,dely,delz,fpair;
+  double rsq,r2inv,r6inv,forcelj,factor_lj,rsw;
+  int *ilist,*jlist,*numneigh,**firstneigh;
+
+  double **x = atom->x;
+  double **f = atom->f;
+  int *type = atom->type;
+  int nlocal = atom->nlocal;
+  double *special_lj = force->special_lj;
+  int newton_pair = force->newton_pair;
+
+  inum = listmiddle->inum;
+  ilist = listmiddle->ilist;
+  numneigh = listmiddle->numneigh;
+  firstneigh = listmiddle->firstneigh;
+
+  double cut_in_off = cut_respa[0];
+  double cut_in_on = cut_respa[1];
+  double cut_out_on = cut_respa[2];
+  double cut_out_off = cut_respa[3];
+
+  double cut_in_diff = cut_in_on - cut_in_off;
+  double cut_out_diff = cut_out_off - cut_out_on;
+  double cut_in_off_sq = cut_in_off*cut_in_off;
+  double cut_in_on_sq = cut_in_on*cut_in_on;
+  double cut_out_on_sq = cut_out_on*cut_out_on;
+  double cut_out_off_sq = cut_out_off*cut_out_off;
+
+  // loop over neighbors of my atoms
+
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    xtmp = x[i][0];
+    ytmp = x[i][1];
+    ztmp = x[i][2];
+    itype = type[i];
+    jlist = firstneigh[i];
+    jnum = numneigh[i];
+
+    for (jj = 0; jj < jnum; jj++) {
+      j = jlist[jj];
+      factor_lj = special_lj[sbmask(j)];
+      j &= NEIGHMASK;
+
+      delx = xtmp - x[j][0];
+      dely = ytmp - x[j][1];
+      delz = ztmp - x[j][2];
+      rsq = delx*delx + dely*dely + delz*delz;
+
+      if (rsq < cut_out_off_sq && rsq > cut_in_off_sq) {
+        r2inv = 1.0/rsq;
+        r6inv = r2inv*r2inv*r2inv;
+        jtype = type[j];
+        forcelj = r6inv * (lj1[itype][jtype]*r6inv - lj2[itype][jtype]);
+        fpair = factor_lj*forcelj*r2inv;
+        if (rsq < cut_in_on_sq) {
+          rsw = (sqrt(rsq) - cut_in_off)/cut_in_diff;
+          fpair *= rsw*rsw*(3.0 - 2.0*rsw);
+        }
+        if (rsq > cut_out_on_sq) {
+          rsw = (sqrt(rsq) - cut_out_on)/cut_out_diff;
+          fpair *= 1.0 + rsw*rsw*(2.0*rsw - 3.0);
+        }
+
+        f[i][0] += delx*fpair;
+        f[i][1] += dely*fpair;
+        f[i][2] += delz*fpair;
+        if (newton_pair || j < nlocal) {
+          f[j][0] -= delx*fpair;
+          f[j][1] -= dely*fpair;
+          f[j][2] -= delz*fpair;
+        }
+      }
+    }
+  }*/
 }
 
 /* ---------------------------------------------------------------------- */
 
 void PairAgni::compute_outer(int eflag, int vflag)
 {
- 
+ /* int i,j,ii,jj,inum,jnum,itype,jtype;
+  double xtmp,ytmp,ztmp,delx,dely,delz,evdwl,fpair;
+  double rsq,r2inv,r6inv,forcelj,factor_lj,rsw;
+  int *ilist,*jlist,*numneigh,**firstneigh;
+
+  evdwl = 0.0;
+  if (eflag || vflag) ev_setup(eflag,vflag);
+  else evflag = 0;
+
+  double **x = atom->x;
+  double **f = atom->f;
+  int *type = atom->type;
+  int nlocal = atom->nlocal;
+  double *special_lj = force->special_lj;
+  int newton_pair = force->newton_pair;
+
+  inum = listouter->inum;
+  ilist = listouter->ilist;
+  numneigh = listouter->numneigh;
+  firstneigh = listouter->firstneigh;
+
+  double cut_in_off = cut_respa[2];
+  double cut_in_on = cut_respa[3];
+
+  double cut_in_diff = cut_in_on - cut_in_off;
+  double cut_in_off_sq = cut_in_off*cut_in_off;
+  double cut_in_on_sq = cut_in_on*cut_in_on;
+
+  // loop over neighbors of my atoms
+
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    xtmp = x[i][0];
+    ytmp = x[i][1];
+    ztmp = x[i][2];
+    itype = type[i];
+    jlist = firstneigh[i];
+    jnum = numneigh[i];
+
+    for (jj = 0; jj < jnum; jj++) {
+      j = jlist[jj];
+      factor_lj = special_lj[sbmask(j)];
+      j &= NEIGHMASK;
+
+      delx = xtmp - x[j][0];
+      dely = ytmp - x[j][1];
+      delz = ztmp - x[j][2];
+      rsq = delx*delx + dely*dely + delz*delz;
+      jtype = type[j];
+
+      if (rsq < cutsq[itype][jtype]) {
+        if (rsq > cut_in_off_sq) {
+          r2inv = 1.0/rsq;
+          r6inv = r2inv*r2inv*r2inv;
+          forcelj = r6inv * (lj1[itype][jtype]*r6inv - lj2[itype][jtype]);
+          fpair = factor_lj*forcelj*r2inv;
+          if (rsq < cut_in_on_sq) {
+            rsw = (sqrt(rsq) - cut_in_off)/cut_in_diff;
+            fpair *= rsw*rsw*(3.0 - 2.0*rsw);
+          }
+
+          f[i][0] += delx*fpair;
+          f[i][1] += dely*fpair;
+          f[i][2] += delz*fpair;
+          if (newton_pair || j < nlocal) {
+            f[j][0] -= delx*fpair;
+            f[j][1] -= dely*fpair;
+            f[j][2] -= delz*fpair;
+          }
+        }
+
+        if (eflag) {
+          r2inv = 1.0/rsq;
+          r6inv = r2inv*r2inv*r2inv;
+          evdwl = r6inv*(lj3[itype][jtype]*r6inv-lj4[itype][jtype]) -
+            offset[itype][jtype];
+          evdwl *= factor_lj;
+        }
+
+        if (vflag) {
+          if (rsq <= cut_in_off_sq) {
+            r2inv = 1.0/rsq;
+            r6inv = r2inv*r2inv*r2inv;
+            forcelj = r6inv * (lj1[itype][jtype]*r6inv - lj2[itype][jtype]);
+            fpair = factor_lj*forcelj*r2inv;
+          } else if (rsq < cut_in_on_sq)
+            fpair = factor_lj*forcelj*r2inv;
+        }
+
+        if (evflag) ev_tally(i,j,nlocal,newton_pair,
+                             evdwl,0.0,fpair,delx,dely,delz);
+      }
+    }
+  }*/
 }
 
 /* ----------------------------------------------------------------------
@@ -324,22 +557,13 @@ void PairAgni::coeff(int narg, char **arg)
 {
   inputFile = arg[2]; //sets the user input filename from in.eam
 
-  //checks to see if input file exists
-  if(ifstream(arg[2]))
+  //read user file is now here because settings gets called before coeff and there is no other way to set cut_global without doing this
+  if(start == true)
   {
-    //read user file is now here because settings gets called before coeff and there is no other way to set cut_global without doing this
-    if(start == true)
-    {    
-      readUserFile(); //user input files
-      start = false;
-    }
+    readUserFile(); //user input files
+    start = false;
   }
-  //throws FNF exception
-  else
-  {
-    cout<<"Input file: "<<arg[2]<<" not found!"<<endl;
-    exit(0);
-  }
+
   //sets cut from cut_global
   if (allocated) {
     int i,j;
@@ -609,7 +833,7 @@ void PairAgni::readUserFile()
             lambda = j;
           else if(varSet == "b") //b
             b = j;
-          else if(varSet == "uncertainty_Coeffs")
+          else if(varSet == "uncertaintyCoeffs")
             tempA.push_back(j);
           else if(varSet == "n_train")//n-train
             nTrain =j;

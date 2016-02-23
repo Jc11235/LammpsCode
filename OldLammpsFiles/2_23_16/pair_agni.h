@@ -58,7 +58,9 @@ class PairAgni : public Pair {
   void set_epsilon_UNC(double *&);
 
   double *a,*dMin,*epsilon_UNC;
-  
+
+  int temp = 1;
+
  protected:
   double cut_global;
   double **cut;
